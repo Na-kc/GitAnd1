@@ -5,13 +5,16 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.FragmentManager;
 
 import android.content.pm.ActivityInfo;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.Spinner;
 import android.widget.Toast;
+import android.widget.ToggleButton;
 
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.map.MapFragment;
@@ -34,6 +37,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         MapFragment mapFragment = (MapFragment)fm.findFragmentById(R.id.map);
 
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
+
         if (mapFragment == null)
         {
             mapFragment =  MapFragment.newInstance();
@@ -44,11 +49,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onMapReady(@NonNull final NaverMap naverMap) {
-        Button b1 = (Button) findViewById(R.id.button1) ;
-        Button b2 = (Button) findViewById(R.id.button2) ;
-        Button b3 = (Button) findViewById(R.id.button3) ;
-        Button b4 = (Button) findViewById(R.id.button4) ;
-        /*Spinner spinner = (Spinner)findViewById(R.id.spinner);
+        final ToggleButton toggleButton = (ToggleButton)findViewById(R.id.toggleButton);
+        Spinner spinner = (Spinner)findViewById(R.id.spinner);
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> adapterView, View view, int position, long id) {
@@ -73,35 +75,18 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             @Override
             public void onNothingSelected(AdapterView<?> adapterView) {
             }
-        });*/
-
-
-        b1.setOnClickListener(new Button.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Toast.makeText(getApplicationContext(),"Basic", Toast.LENGTH_SHORT).show();
-                naverMap.setMapType(NaverMap.MapType.Basic);
-            }
         });
-        b2.setOnClickListener(new Button.OnClickListener() {
+        toggleButton.setOnClickListener(new Button.OnClickListener() {
             @Override
             public void onClick(View view) {
-                naverMap.setMapType(NaverMap.MapType.Navi);
-                Toast.makeText(getApplicationContext(),"Navi", Toast.LENGTH_SHORT).show();
-            }
-        });
-        b3.setOnClickListener(new Button.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                naverMap.setMapType(NaverMap.MapType.Satellite);
-                Toast.makeText(getApplicationContext(),"Satellite", Toast.LENGTH_SHORT).show();
-            }
-        });
-        b4.setOnClickListener(new Button.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                naverMap.setMapType(NaverMap.MapType.Hybrid);
-                Toast.makeText(getApplicationContext(),"Hybride", Toast.LENGTH_SHORT).show();
+                if(toggleButton.isChecked()) {
+                    naverMap.setLayerGroupEnabled(NaverMap.LAYER_GROUP_CADASTRAL, true);
+                    toggleButton.setBackgroundColor(Color.GREEN);
+                }
+                else {
+                    naverMap.setLayerGroupEnabled(NaverMap.LAYER_GROUP_CADASTRAL, false);
+                    toggleButton.setBackgroundColor(Color.RED);
+                }
             }
         });
 
