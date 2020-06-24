@@ -7,6 +7,7 @@ import androidx.fragment.app.FragmentManager;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.AdapterView;
@@ -17,20 +18,27 @@ import android.widget.Toast;
 import android.widget.ToggleButton;
 
 import com.naver.maps.geometry.LatLng;
+import com.naver.maps.map.CameraAnimation;
+import com.naver.maps.map.CameraUpdate;
+import com.naver.maps.map.LocationTrackingMode;
 import com.naver.maps.map.MapFragment;
 import com.naver.maps.map.NaverMap;
 import com.naver.maps.map.OnMapReadyCallback;
+import com.naver.maps.map.util.FusedLocationSource;
 
 import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback {
-
+    private static final int LOCATION_PERMISSION_REQUEST_CODE = 1000;
+    private FusedLocationSource locationSource;
+    private NaverMap naverMap;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        locationSource = new FusedLocationSource(this, LOCATION_PERMISSION_REQUEST_CODE);
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
 
         FragmentManager fm = getSupportFragmentManager();
@@ -48,9 +56,29 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String[] permissions,  @NonNull int[] grantResults) {
+        if (locationSource.onRequestPermissionsResult(
+                requestCode, permissions, grantResults)) {
+            if (!locationSource.isActivated()) { // 권한 거부됨
+                naverMap.setLocationTrackingMode(LocationTrackingMode.None);
+            }
+            return;
+        }
+        super.onRequestPermissionsResult(
+                requestCode, permissions, grantResults);
+    }
+
+    @Override
     public void onMapReady(@NonNull final NaverMap naverMap) {
+
+        naverMap.setLocationSource(locationSource);
+
+
         final ToggleButton toggleButton = (ToggleButton)findViewById(R.id.toggleButton);
         Spinner spinner = (Spinner)findViewById(R.id.spinner);
+        Button button = (Button)findViewById(R.id.button);
+
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> adapterView, View view, int position, long id) {
@@ -89,10 +117,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
             }
         });
+        button.setOnClickListener(new Button.OnClickListener(){
+            public void onClick(View view) {
+                naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
+            }
+        });
 
-        LatLng coord = new LatLng(37.5670135,126.9783740);
+        naverMap.addOnLocationChangeListener(location ->
+                Toast.makeText(this,"위도:" + location.getLatitude() + ", 경도: " + location.getLongitude(), Toast.LENGTH_SHORT).show());
 
-        Toast.makeText(this, "위도:" + coord.latitude + ", 경도: " + coord.longitude, Toast.LENGTH_SHORT).show();
     }
 
 
