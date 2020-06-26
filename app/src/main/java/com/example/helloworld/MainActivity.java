@@ -6,6 +6,10 @@ import androidx.fragment.app.FragmentManager;
 
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
+import android.graphics.Point;
+import android.graphics.PointF;
+import android.location.Address;
+import android.location.Geocoder;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -14,9 +18,11 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
 
+import com.google.gson.Gson;
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.map.CameraAnimation;
 import com.naver.maps.map.CameraUpdate;
@@ -24,14 +30,34 @@ import com.naver.maps.map.LocationTrackingMode;
 import com.naver.maps.map.MapFragment;
 import com.naver.maps.map.NaverMap;
 import com.naver.maps.map.OnMapReadyCallback;
+import com.naver.maps.map.overlay.LocationOverlay;
+import com.naver.maps.map.overlay.Overlay;
 import com.naver.maps.map.util.FusedLocationSource;
 
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
+import org.xmlpull.v1.XmlPullParserFactory;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.ProtocolException;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback {
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1000;
     private FusedLocationSource locationSource;
     private NaverMap naverMap;
+    private Geocoder geocoder; // 역지오코딩 하기 위해
+    String pnu = "";
+    String ag_geom = "";
+
+    // pnu로 받아온 좌표값 저장
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,51 +81,213 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         mapFragment.getMapAsync(this);
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           @NonNull String[] permissions,  @NonNull int[] grantResults) {
-        if (locationSource.onRequestPermissionsResult(
-                requestCode, permissions, grantResults)) {
-            if (!locationSource.isActivated()) { // 권한 거부됨
-                naverMap.setLocationTrackingMode(LocationTrackingMode.None);
+
+    public void NaverReverseGeocoding(LatLng latLng) {
+
+        new Thread() {
+            String TextAddress = "";
+            @Override
+            public void run() {
+                String clientId = "wnz1hbngf0";
+                String clientSecret = "aMMYNkT1VQjoQ3ifRJkFYHDIknKp7sv4A35ZSLt8";
+
+                double x = latLng.longitude;
+                double y = latLng.latitude;
+
+                try {
+                    String apiURL = "https://naveropenapi.apigw.ntruss.com/map-reversegeocode/v2/gc?coords=" + x + "," + y + "&sourcecrs=EPSG:4019&orders=addr";
+
+                    Log.d("NaverReverseGeocoding", "apiURL : " + apiURL);
+
+                    URL url = new URL(apiURL);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("GET");
+                    conn.setRequestProperty("X-NCP-APIGW-API-KEY-ID", clientId);
+                    conn.setRequestProperty("X-NCP-APIGW-API-KEY", clientSecret);
+
+                    // #############################################################
+//                  Naver XML 문 확인 코드 (아래 XML 구문 전체 주석처리 후 사용)
+
+//                    int responseCode = conn.getResponseCode();
+//
+//                  BufferedReader br;
+//                    if(responseCode == 200) {
+//                        br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+//                    } else {
+//                        br = new BufferedReader(new InputStreamReader(conn.getErrorStream()));
+//                    }
+//
+//                    sb = new StringBuilder();
+//                    String line;
+//
+//                    while((line = br.readLine()) != null) {
+//                        sb.append(line + "\n");
+//                    }
+//
+//                    Log.d("NaverReverseGeocoding", "sb : " + sb);
+
+                    // #############################################################
+                    XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
+                    XmlPullParser xpp = factory.newPullParser();
+                    String tag;
+                    // inputStream으로부터 xml 값 받기
+                    xpp.setInput(conn.getInputStream(), null);
+                    xpp.next();
+                    int eventType = xpp.getEventType();
+
+                    while (eventType != XmlPullParser.END_DOCUMENT) {       // 문서가 끝나지 않을때까지
+                        switch (eventType) {
+                            case XmlPullParser.START_DOCUMENT:              // 문서 시작 시
+                                break;                                      // 아무 일도 하지 않음
+
+                            case XmlPullParser.START_TAG:                   // 태그 시작 시
+                                tag = xpp.getName();                        // 태그 값을 tag 변수에 저장
+
+                                String zero = "";
+
+                                if (tag.equals("id")) {                     // 태그 값이 id 일때
+                                    xpp.next();
+                                    pnu = xpp.getText();                    // pnu 에 값 저장
+                                    Log.d("NaverReverseGeocoding", "pnu1 : " + pnu);
+                                    break;
+                                }
+                                if (tag.equals("land")) {                   // 태그 값이 land 일때
+                                    xpp.next();
+                                    tag = xpp.getName();                    // 다음 태그값을 받음
+                                    if (tag.equals("type")) {               // 태그 값이 type 일때
+                                        xpp.next();
+                                        pnu = pnu + xpp.getText();          // pnu에 값 추가 저장
+                                        Log.d("NaverReverseGeocoding", "pnu2 : " + pnu);
+                                    }
+                                }
+                                if (tag.equals("number1")) {
+                                    xpp.next();
+                                    xpp.getText().length();
+                                    for (int i = 0; i < (4 - xpp.getText().length()); i++) {
+                                        zero = zero + "0";
+                                    }
+                                    pnu = pnu + zero + xpp.getText();
+                                    Log.d("NaverReverseGeocoding", "pnu3 : " + pnu);
+
+                                    TextAddress = TextAddress + xpp.getText();
+                                    Log.d("NaverReverseGeocoding", "TextAddress5 : " + TextAddress);
+                                }
+                                if (tag.equals("number2")) {
+                                    xpp.next();
+                                    if (xpp.getText() != null) {
+                                        xpp.getText().length();
+
+                                        for (int i = 0; i < (4 - xpp.getText().length()); i++) {
+                                            zero = zero + "0";
+                                        }
+                                        pnu = pnu + zero + xpp.getText();
+                                        Log.d("NaverReverseGeocoding", "pnu4 : " + pnu);
+
+                                        TextAddress = TextAddress + "-" + xpp.getText() + "번지";
+                                        Log.d("NaverReverseGeocoding", "TextAddress6 : " + TextAddress);
+                                    } else {
+                                        pnu = pnu + "0000";
+                                        Log.d("NaverReverseGeocoding", "pnu4 : " + pnu);
+
+                                        TextAddress = TextAddress + "번지";
+                                        Log.d("NaverReverseGeocoding", "TextAddress6 : " + TextAddress);
+                                    }
+                                }
+
+                                if(tag.equals("area1")) {
+                                    xpp.next();
+                                    tag = xpp.getName();
+                                    if(tag.equals("name")) {
+                                        xpp.next();
+                                        TextAddress = TextAddress + xpp.getText() + " ";
+                                        Log.d("NaverReverseGeocoding", "TextAddress1 : " + TextAddress);
+                                    }
+                                }
+                                if(tag.equals("area2")) {
+                                    xpp.next();
+                                    tag = xpp.getName();
+                                    if(tag.equals("name")) {
+                                        xpp.next();
+                                        TextAddress = TextAddress + xpp.getText() + " ";
+                                        Log.d("NaverReverseGeocoding", "TextAddress2 : " + TextAddress);
+                                    }
+                                }
+                                if(tag.equals("area3")) {
+                                    xpp.next();
+                                    tag = xpp.getName();
+                                    if(tag.equals("name")) {
+                                        xpp.next();
+                                        TextAddress = TextAddress + xpp.getText() + " ";
+                                        Log.d("NaverReverseGeocoding", "TextAddress3 : " + TextAddress);
+                                    }
+                                }
+                                if(tag.equals("area4")) {
+                                    xpp.next();
+                                    if(xpp.getName() != null) {
+                                        tag = xpp.getName();
+                                        if(tag.equals("name")) {
+                                            xpp.next();
+                                            TextAddress = TextAddress + xpp.getText() + " ";
+                                            Log.d("NaverReverseGeocoding", "TextAddress4 : " + TextAddress);
+                                        }
+                                    }
+                                }
+
+                        }
+                        eventType = xpp.next();
+                    }
+
+                    //TextView textViewAddress = (TextView) findViewById(R.id.textViewAddress);
+                    //textViewAddress.setText(TextAddress);
+                    Log.d("tag",TextAddress);
+                    //Toast.makeText(MainActivity.this, TextAddress, Toast.LENGTH_SHORT).show();
+
+                    // pnu -> polygon 좌표들
+                    //VworldDataAPI();
+
+                } catch (ProtocolException e) {
+                    e.printStackTrace();
+                } catch (MalformedURLException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } catch (XmlPullParserException e) {
+                    e.printStackTrace();
+                } catch (NullPointerException e) {
+                    e.printStackTrace();
+                }
             }
-            return;
-        }
-        super.onRequestPermissionsResult(
-                requestCode, permissions, grantResults);
+        }.start();
     }
 
     @Override
     public void onMapReady(@NonNull final NaverMap naverMap) {
-
         naverMap.setLocationSource(locationSource);
 
 
-        final ToggleButton toggleButton = (ToggleButton)findViewById(R.id.toggleButton);
-        Spinner spinner = (Spinner)findViewById(R.id.spinner);
-        Button button = (Button)findViewById(R.id.button);
+        final ToggleButton toggleButton = (ToggleButton) findViewById(R.id.toggleButton);
+        Spinner spinner = (Spinner) findViewById(R.id.spinner);
+        Button button = (Button) findViewById(R.id.button);
 
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> adapterView, View view, int position, long id) {
-                if(position == 0) {
-                    Toast.makeText(getApplicationContext(),"Basic", Toast.LENGTH_SHORT).show();
+                if (position == 0) {
+                    Toast.makeText(getApplicationContext(), "Basic", Toast.LENGTH_SHORT).show();
                     naverMap.setMapType(NaverMap.MapType.Basic);
-                }
-                else if(position == 1) {
+                } else if (position == 1) {
                     naverMap.setMapType(NaverMap.MapType.Navi);
-                    Toast.makeText(getApplicationContext(),"Navi", Toast.LENGTH_SHORT).show();
-                }
-                else if(position == 2) {
+                    Toast.makeText(getApplicationContext(), "Navi", Toast.LENGTH_SHORT).show();
+                } else if (position == 2) {
                     naverMap.setMapType(NaverMap.MapType.Satellite);
-                    Toast.makeText(getApplicationContext(),"Satellite", Toast.LENGTH_SHORT).show();
-                }
-                else if(position == 3) {
+                    Toast.makeText(getApplicationContext(), "Satellite", Toast.LENGTH_SHORT).show();
+                } else if (position == 3) {
                     naverMap.setMapType(NaverMap.MapType.Hybrid);
-                    Toast.makeText(getApplicationContext(),"Hybride", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getApplicationContext(), "Hybride", Toast.LENGTH_SHORT).show();
                 }
 
             }
+
             @Override
             public void onNothingSelected(AdapterView<?> adapterView) {
             }
@@ -107,26 +295,27 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         toggleButton.setOnClickListener(new Button.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if(toggleButton.isChecked()) {
+                if (toggleButton.isChecked()) {
                     naverMap.setLayerGroupEnabled(NaverMap.LAYER_GROUP_CADASTRAL, true);
                     toggleButton.setBackgroundColor(Color.GREEN);
-                }
-                else {
+                } else {
                     naverMap.setLayerGroupEnabled(NaverMap.LAYER_GROUP_CADASTRAL, false);
                     toggleButton.setBackgroundColor(Color.RED);
                 }
             }
         });
-        button.setOnClickListener(new Button.OnClickListener(){
+        button.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View view) {
                 naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
             }
         });
 
-        naverMap.addOnLocationChangeListener(location ->
-                Toast.makeText(this,"위도:" + location.getLatitude() + ", 경도: " + location.getLongitude(), Toast.LENGTH_SHORT).show());
+        naverMap.setOnMapClickListener(new NaverMap.OnMapClickListener() {
+            @Override
+            public void onMapClick(@NonNull PointF pointF, @NonNull LatLng latLng) {
+                NaverReverseGeocoding(latLng);
+            }
+        });
 
     }
-
-
 }
