@@ -4,8 +4,11 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.FragmentManager;
 
+import android.content.Context;
 import android.content.pm.ActivityInfo;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.Point;
 import android.graphics.PointF;
 import android.location.Address;
@@ -36,6 +39,7 @@ import com.naver.maps.map.overlay.InfoWindow;
 import com.naver.maps.map.overlay.LocationOverlay;
 import com.naver.maps.map.overlay.Marker;
 import com.naver.maps.map.overlay.Overlay;
+import com.naver.maps.map.overlay.PolygonOverlay;
 import com.naver.maps.map.util.FusedLocationSource;
 
 import org.xmlpull.v1.XmlPullParser;
@@ -51,20 +55,21 @@ import java.net.ProtocolException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback {
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1000;
     private FusedLocationSource locationSource;
     private NaverMap naverMap;
-    //private Geocoder geocoder; // 역지오코딩 하기 위해
     private boolean isDeleteMode = false;
     String pnu = "";
-    String ag_geom = "";
+    String ReverseGeo = "";
 
     Marker kunsan_Uni = new Marker();
     Marker kunsan_cityHall = new Marker();
-    Marker kunsan_myHome = new Marker();
+
 
     InfoWindow infoWindow = new InfoWindow();
     // pnu로 받아온 좌표값 저장
@@ -117,7 +122,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 } else {
                     br = new BufferedReader(new InputStreamReader(conn.getErrorStream()));
                 }
-                 */
+                */
                 XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
                 XmlPullParser xpp = factory.newPullParser();
                 String tag;
@@ -223,23 +228,20 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                                     }
                                 }
                             }
-
                     }
                     eventType = xpp.next();
                 }
-                Log.d("NaverReverseGeocoding", TextAddress);
-
-
             } catch (Exception e) {
-//            System.out.println(e);
                 Log.d("error: ", ""+e);
             }
+            ReverseGeo = TextAddress;
+
             return TextAddress;
         }
         @Override
         protected void onPostExecute(String TextAddress) {
             super.onPostExecute(TextAddress);
-            //Log.d("HTTP Result : ", TextAddress);
+            Log.d("HTTP Result : ", TextAddress);
         }
     }
 
@@ -280,7 +282,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     naverMap.setMapType(NaverMap.MapType.Hybrid);
                     Toast.makeText(getApplicationContext(), "Hybride", Toast.LENGTH_SHORT).show();
                 }
-
             }
 
             @Override
@@ -318,9 +319,12 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         // 맵 터치 이벤트로 해당 좌표에 마커 생성
         naverMap.setOnMapClickListener(new NaverMap.OnMapClickListener() {
+            List<LatLng> coords = new ArrayList<>();
+
             @Override
             public void onMapClick(@NonNull PointF pointF, @NonNull LatLng latLng) {
                 Marker touch_marker = new Marker();
+                PolygonOverlay polygon = new PolygonOverlay();
 
                 double latitude = latLng.latitude;
                 double longitude = latLng.longitude;
@@ -329,31 +333,46 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 touch_marker.setTag(String.format("%f, %f", latitude, longitude));
                 touch_marker.setMap(naverMap);
 
-                // reverse geocording
-                ReverseGeocording reverseGeocording = new ReverseGeocording();
-                reverseGeocording.execute(latLng);
+                Collections.addAll(coords,
+                        new LatLng(latitude, longitude)
+                );
 
+                if(coords.size()>2){
+                    //coords.set(0, new LatLng(latitude, longitude));
+                    // 아직 반영되지 않음
+                    polygon.setCoords(coords);
+                    // 반영됨
+                    polygon.setOutlineWidth(5);
+                    polygon.setMap(naverMap);
+                }
 
                 touch_marker.setOnClickListener(overlay -> {
                     if (!isDeleteMode) {
                         if (touch_marker.getInfoWindow() == null) {
                             infoWindow.open(touch_marker);
+                            infoWindow.setAdapter(new InfoWindow.DefaultTextAdapter(getApplicationContext()) {
+                                @NonNull
+                                @Override
+                                public CharSequence getText(@NonNull InfoWindow infoWindow) {
+                                    // reverse geocording
+                                    ReverseGeocording reverseGeocording = new ReverseGeocording();
+                                    reverseGeocording.execute(latLng);
+                                    Log.d("ReverseGeo : ", ReverseGeo);
+                                    return (CharSequence) (infoWindow.getMarker().getTag() +"\n" + ReverseGeo);
+                                }
+                            });
                         } else {
                             infoWindow.close();
                         }
                     } else {
                         touch_marker.setMap(null);
+                        coords.remove(new LatLng(latitude, longitude));
+                        polygon.setMap(null);
                     }
                     return true;
                 });
 
-                infoWindow.setAdapter(new InfoWindow.DefaultTextAdapter(getApplicationContext()) {
-                    @NonNull
-                    @Override
-                    public CharSequence getText(@NonNull InfoWindow infoWindow) {
-                        return (CharSequence) infoWindow.getMarker().getTag();
-                    }
-                });
+
             }
         });
 
