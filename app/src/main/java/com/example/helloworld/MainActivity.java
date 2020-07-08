@@ -333,6 +333,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 touch_marker.setTag(String.format("%f, %f", latitude, longitude));
                 touch_marker.setMap(naverMap);
 
+                ReverseGeocording reverseGeocording = new ReverseGeocording();
+                reverseGeocording.execute(latLng);
+
                 Collections.addAll(coords,
                         new LatLng(latitude, longitude)
                 );
@@ -355,8 +358,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                                 @Override
                                 public CharSequence getText(@NonNull InfoWindow infoWindow) {
                                     // reverse geocording
-                                    ReverseGeocording reverseGeocording = new ReverseGeocording();
-                                    reverseGeocording.execute(latLng);
                                     Log.d("ReverseGeo : ", ReverseGeo);
                                     return (CharSequence) (infoWindow.getMarker().getTag() +"\n" + ReverseGeo);
                                 }
@@ -365,9 +366,11 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                             infoWindow.close();
                         }
                     } else {
-                        touch_marker.setMap(null);
                         coords.remove(new LatLng(latitude, longitude));
-                        polygon.setMap(null);
+                        touch_marker.setMap(null);
+                        if(coords.size()>1){
+                            polygon.setMap(null);
+                        }
                     }
                     return true;
                 });
